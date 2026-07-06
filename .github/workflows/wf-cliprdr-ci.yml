@@ -9,7 +9,7 @@ on:
       - ".github/workflows/wf-cliprdr-ci.yml"
   push:
     branches:
-      - Custom
+      - custom
     paths:
       - "libs/clipboard/src/windows/**"
       - "tests/test_invariant_wf_cliprdr.c"
