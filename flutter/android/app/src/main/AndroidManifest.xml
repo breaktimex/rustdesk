@@ -25,14 +25,14 @@
     <application
         android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher"
-        android:label="RustDesk"
+        android:label="RemotePlayer"
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true">
 
         <receiver
             android:name=".BootReceiver"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -44,7 +44,7 @@
 
         <service
             android:name=".InputService"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="false"
             android:label="RustDesk Input"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -87,12 +87,12 @@
 
         <service
             android:name=".MainService"
-            android:enabled="true"
+            android:enabled="false"
             android:foregroundServiceType="mediaProjection" />
 
         <service
             android:name=".FloatingWindowService"
-            android:enabled="true" />
+            android:enabled="false" />
 
         <!--
  Don't delete the meta-data below.
