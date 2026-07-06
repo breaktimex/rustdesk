@@ -1,3 +1,3 @@
 [submodule "libs/hbb_common"]
-	path = libs/hbb_common
+	path = libs/hbb_commom
 	url = https://github.com/breaktimex/hbb_common
