@@ -1184,7 +1184,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
 
 const String kOptionCustomShortcuts = 'customShortcuts';
 const int kCustomShortcutCols = 8; // max keys per row
-const int kCustomShortcutRows = 5; // number of rows
+const int kCustomShortcutRows = 7; // number of rows
 const int kCustomShortcutCount = kCustomShortcutCols * kCustomShortcutRows;
 
 class CustomShortcut {
@@ -1224,24 +1224,38 @@ class CustomShortcut {
 }
 
 List<CustomShortcut> _defaultCustomShortcuts() {
-  final list = <CustomShortcut>[
-    CustomShortcut(label: 'A', key: 'VK_A'),
-    CustomShortcut(label: 'S', key: 'VK_S'),
-    CustomShortcut(label: 'D', key: 'VK_D'),
-    CustomShortcut(label: 'W', key: 'VK_W'),
-    CustomShortcut(label: 'Space', key: 'VK_SPACE'),
-    CustomShortcut(label: 'F12', key: 'VK_F12'),
+  final list = <CustomShortcut>[];
+  // 26 letters A-Z
+  for (var c = 'A'.codeUnitAt(0); c <= 'Z'.codeUnitAt(0); c++) {
+    final ch = String.fromCharCode(c);
+    list.add(CustomShortcut(label: ch, key: 'VK_$ch'));
+  }
+  // 10 digits 0-9
+  for (var d = 0; d <= 9; d++) {
+    list.add(CustomShortcut(label: '$d', key: 'VK_$d'));
+  }
+  // special keys
+  list.addAll(<CustomShortcut>[
     CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
     CustomShortcut(label: 'Tab', key: 'VK_TAB'),
-    CustomShortcut(label: '1', key: 'VK_1'),
-    CustomShortcut(label: '2', key: 'VK_2'),
-    CustomShortcut(label: '3', key: 'VK_3'),
-    CustomShortcut(label: '4', key: 'VK_4'),
-    CustomShortcut(label: '5', key: 'VK_5'),
-  ];
+    CustomShortcut(label: 'Space', key: 'VK_SPACE'),
+    CustomShortcut(label: 'Enter', key: 'VK_ENTER'),
+    CustomShortcut(label: 'Ctrl', key: 'VK_CONTROL'),
+    CustomShortcut(label: 'Shift', key: 'VK_SHIFT'),
+    CustomShortcut(label: 'Alt', key: 'VK_MENU'),
+    CustomShortcut(label: 'Del', key: 'VK_DELETE'),
+  ]);
+  // F1-F12 while there is still room
+  for (var i = 1; i <= 12 && list.length < kCustomShortcutCount; i++) {
+    list.add(CustomShortcut(label: 'F$i', key: 'VK_F$i'));
+  }
   // Pad the rest with empty slots (long-press to customize).
   while (list.length < kCustomShortcutCount) {
     list.add(CustomShortcut());
+  }
+  // Safety: never exceed the grid capacity.
+  if (list.length > kCustomShortcutCount) {
+    return list.sublist(0, kCustomShortcutCount);
   }
   return list;
 }
