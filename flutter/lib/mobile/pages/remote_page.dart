@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,6 +63,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   Timer? _timer;
   bool _showBar = !isWebDesktop;
   bool _showGestureHelp = false;
+  bool _showCustomKeys = false; // custom shortcuts panel
   String _value = '';
   Orientation? _currentOrientation;
   final _uniqueKey = UniqueKey();
@@ -433,11 +435,22 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     });
   }
 
-  Widget _bottomWidget() => _showGestureHelp
-      ? getGestureHelp()
-      : (_showBar && gFFI.ffiModel.pi.displays.isNotEmpty
-          ? getBottomAppBar()
-          : Offstage());
+  Widget _bottomWidget() {
+    if (_showGestureHelp) return getGestureHelp();
+    final displaysReady = gFFI.ffiModel.pi.displays.isNotEmpty;
+    final children = <Widget>[];
+    if (_showCustomKeys && displaysReady) {
+      children.add(CustomShortcutsBar(
+        onSend: _sendCustomShortcut,
+        onClose: () => setState(() => _showCustomKeys = false),
+      ));
+    }
+    if (_showBar && displaysReady) {
+      children.add(getBottomAppBar());
+    }
+    if (children.isEmpty) return Offstage();
+    return Column(mainAxisSize: MainAxisSize.min, children: children);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -575,6 +588,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                         setState(() => _showEdit = false);
                         showOptions(context, widget.id, gFFI.dialogManager);
                       },
+                      ),
+                    if (!ffiModel.viewOnly && ffiModel.keyboard)
+                      IconButton(
+                        color: Colors.white,
+                        icon: Icon(Icons.dashboard_customize),
+                        onPressed: () => setState(
+                            () => _showCustomKeys = !_showCustomKeys),
                     )
                   ] +
                   (isWebDesktop || ffiModel.viewOnly || !ffiModel.keyboard
@@ -648,7 +668,24 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       ),
     );
   }
-
+  void _sendCustomShortcut(CustomShortcut sc) {
+    if (sc.key.isEmpty) return;
+    final im = inputModel;
+    final oldCtrl = im.ctrl;
+    final oldAlt = im.alt;
+    final oldShift = im.shift;
+    final oldCommand = im.command;
+    im.ctrl = sc.ctrl;
+    im.alt = sc.alt;
+    im.shift = sc.shift;
+    im.command = sc.command;
+    im.inputKey(sc.key);
+    im.ctrl = oldCtrl;
+    im.alt = oldAlt;
+    im.shift = oldShift;
+    im.command = oldCommand;
+  }
+  
   bool get showCursorPaint =>
       !gFFI.ffiModel.isPeerAndroid &&
       !gFFI.canvasModel.cursorEmbedded &&
@@ -1137,7 +1174,234 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
         ));
   }
 }
+// ===== Custom shortcuts panel =====
 
+const String kOptionCustomShortcuts = 'customShortcuts';
+const int kCustomShortcutCount = 10;
+
+class CustomShortcut {
+  String label;
+  bool ctrl;
+  bool alt;
+  bool shift;
+  bool command;
+  String key;
+
+  CustomShortcut({
+    this.label = '',
+    this.ctrl = false,
+    this.alt = false,
+    this.shift = false,
+    this.command = false,
+    this.key = '',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'ctrl': ctrl,
+        'alt': alt,
+        'shift': shift,
+        'command': command,
+        'key': key,
+      };
+
+  factory CustomShortcut.fromJson(Map<String, dynamic> j) => CustomShortcut(
+        label: (j['label'] ?? '').toString(),
+        ctrl: j['ctrl'] == true,
+        alt: j['alt'] == true,
+        shift: j['shift'] == true,
+        command: j['command'] == true,
+        key: (j['key'] ?? '').toString(),
+      );
+}
+
+List<CustomShortcut> _defaultCustomShortcuts() => [
+      CustomShortcut(label: 'A', key: 'VK_A'),
+      CustomShortcut(label: 'S', key: 'VK_S'),
+      CustomShortcut(label: 'D', key: 'VK_D'),
+      CustomShortcut(label: 'W', key: 'VK_W'),
+      CustomShortcut(label: 'Space', key: 'VK_SPACE'),
+      CustomShortcut(label: 'F10', key: 'VK_F10'),
+      CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
+      CustomShortcut(label: 'Tab', key: 'VK_TAB'),
+      CustomShortcut(label: '1', key: 'VK_1'),
+      CustomShortcut(label: '2', key: 'VK_2'),
+    ];
+
+class CustomShortcutsBar extends StatefulWidget {
+  final void Function(CustomShortcut) onSend;
+  final VoidCallback? onClose;
+  const CustomShortcutsBar({Key? key, required this.onSend, this.onClose})
+      : super(key: key);
+
+  @override
+  State<CustomShortcutsBar> createState() => _CustomShortcutsBarState();
+}
+
+class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
+  List<CustomShortcut> _shortcuts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _shortcuts = _defaultCustomShortcuts();
+    try {
+      final s = bind.getLocalFlutterOption(k: kOptionCustomShortcuts);
+      if (s.isNotEmpty) {
+        final list = jsonDecode(s) as List;
+        final loaded = list
+            .map((e) => CustomShortcut.fromJson(e as Map<String, dynamic>))
+            .toList();
+        for (var i = 0; i < kCustomShortcutCount; ++i) {
+          if (i < loaded.length) {
+            _shortcuts[i] = loaded[i];
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load custom shortcuts: $e');
+    }
+  }
+
+  void _save() {
+    final s = jsonEncode(_shortcuts.map((e) => e.toJson()).toList());
+    bind.setLocalFlutterOption(k: kOptionCustomShortcuts, v: s);
+  }
+
+  Future<void> _edit(int index) async {
+    final sc = _shortcuts[index];
+    final labelCtrl = TextEditingController(text: sc.label);
+    final keyCtrl = TextEditingController(text: sc.key);
+    var ctrl = sc.ctrl;
+    var alt = sc.alt;
+    var shift = sc.shift;
+    var command = sc.command;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setInner) {
+          Widget modifier(
+              String name, bool value, void Function(bool) onChanged) {
+            return FilterChip(
+              label: Text(name),
+              selected: value,
+              onSelected: (v) => setInner(() => onChanged(v)),
+            );
+          }
+
+          return AlertDialog(
+            title: Text(translate('Customize shortcut')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: labelCtrl,
+                    decoration: InputDecoration(labelText: translate('Name')),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 6, children: [
+                    modifier('Ctrl', ctrl, (v) => ctrl = v),
+                    modifier('Alt', alt, (v) => alt = v),
+                    modifier('Shift', shift, (v) => shift = v),
+                    modifier('Win/Cmd', command, (v) => command = v),
+                  ]),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: keyCtrl,
+                    decoration: InputDecoration(
+                      labelText: translate('Key'),
+                      hintText: 'c / VK_ENTER / VK_F5',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              dialogButton(translate('Cancel'),
+                  onPressed: () => Navigator.pop(ctx), isOutline: true),
+              dialogButton(translate('OK'), onPressed: () {
+                setState(() {
+                  _shortcuts[index] = CustomShortcut(
+                    label: labelCtrl.text.trim(),
+                    ctrl: ctrl,
+                    alt: alt,
+                    shift: shift,
+                    command: command,
+                    key: keyCtrl.text.trim(),
+                  );
+                });
+                _save();
+                Navigator.pop(ctx);
+              }),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xAA000000),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Row(
+        children: [
+          IconButton(
+            color: Colors.white,
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.close),
+            tooltip: translate('Close'),
+            onPressed: widget.onClose,
+          ),
+          const SizedBox(width: 2),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: List.generate(_shortcuts.length, (i) {
+                  final sc = _shortcuts[i];
+                  final text = sc.label.isNotEmpty
+                      ? sc.label
+                      : (sc.key.isNotEmpty ? sc.key : '—');
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 0),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        backgroundColor: MyTheme.accent80,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(5.0),
+                        ),
+                      ),
+                      onPressed: () => widget.onSend(sc),
+                      onLongPress: () => _edit(i),
+                      child: Text(text,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12)),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class ImagePaint extends StatelessWidget {
   final FfiModel ffiModel;
   ImagePaint({Key? key, required this.ffiModel}) : super(key: key);
