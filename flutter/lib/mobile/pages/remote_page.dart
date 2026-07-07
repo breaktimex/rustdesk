@@ -670,6 +670,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   }
   void _sendCustomShortcut(CustomShortcut sc) {
     if (sc.key.isEmpty) return;
+    // Prefer map mode (physical USB HID scancode) so games using DirectInput /
+    // Raw Input receive the key. Fall back to legacy char/control-key input if
+    // the key name has no known physical HID usage.
+    final sent = inputModel.sendKeyNameMapMode(sc.key,
+        ctrl: sc.ctrl, alt: sc.alt, shift: sc.shift, command: sc.command);
+    if (sent) return;
     final im = inputModel;
     final oldCtrl = im.ctrl;
     final oldAlt = im.alt;
@@ -1177,7 +1183,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
 // ===== Custom shortcuts panel =====
 
 const String kOptionCustomShortcuts = 'customShortcuts';
-const int kCustomShortcutCount = 10;
+const int kCustomShortcutCols = 8; // max keys per row
+const int kCustomShortcutRows = 5; // number of rows
+const int kCustomShortcutCount = kCustomShortcutCols * kCustomShortcutRows;
 
 class CustomShortcut {
   String label;
@@ -1215,18 +1223,25 @@ class CustomShortcut {
       );
 }
 
-List<CustomShortcut> _defaultCustomShortcuts() => [
-      CustomShortcut(label: 'A', key: 'VK_A'),
-      CustomShortcut(label: 'S', key: 'VK_S'),
-      CustomShortcut(label: 'D', key: 'VK_D'),
-      CustomShortcut(label: 'W', key: 'VK_W'),
-      CustomShortcut(label: 'Space', key: 'VK_SPACE'),
-      CustomShortcut(label: 'F10', key: 'VK_F10'),
-      CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
-      CustomShortcut(label: 'Tab', key: 'VK_TAB'),
-      CustomShortcut(label: '1', key: 'VK_1'),
-      CustomShortcut(label: '2', key: 'VK_2'),
-    ];
+List<CustomShortcut> _defaultCustomShortcuts() {
+  final list = <CustomShortcut>[
+    CustomShortcut(label: 'A', key: 'VK_A'),
+    CustomShortcut(label: 'S', key: 'VK_S'),
+    CustomShortcut(label: 'D', key: 'VK_D'),
+    CustomShortcut(label: 'W', key: 'VK_W'),
+    CustomShortcut(label: 'Space', key: 'VK_SPACE'),
+    CustomShortcut(label: 'F10', key: 'VK_F10'),
+    CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
+    CustomShortcut(label: 'Tab', key: 'VK_TAB'),
+    CustomShortcut(label: '1', key: 'VK_1'),
+    CustomShortcut(label: '2', key: 'VK_2'),
+  ];
+  // Pad the rest with empty slots (long-press to customize).
+  while (list.length < kCustomShortcutCount) {
+    list.add(CustomShortcut());
+  }
+  return list;
+}
 
 class CustomShortcutsBar extends StatefulWidget {
   final void Function(CustomShortcut) onSend;
@@ -1346,57 +1361,80 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
     );
   }
 
+  Widget _buildKeyButton(int i) {
+    if (i >= _shortcuts.length) {
+      return const SizedBox.shrink();
+    }
+    final sc = _shortcuts[i];
+    final text = sc.label.isNotEmpty
+        ? sc.label
+        : (sc.key.isNotEmpty ? sc.key : '—');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: TextButton(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 0),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: MyTheme.accent80,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(5.0),
+          ),
+        ),
+        onPressed: () => widget.onSend(sc),
+        onLongPress: () => _edit(i),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    const cols = kCustomShortcutCols;
+    final rows = (kCustomShortcutCount / cols).ceil();
     return Container(
       width: double.infinity,
       color: const Color(0xAA000000),
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            color: Colors.white,
-            iconSize: 18,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            icon: const Icon(Icons.close),
-            tooltip: translate('Close'),
-            onPressed: widget.onClose,
-          ),
-          const SizedBox(width: 2),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: List.generate(_shortcuts.length, (i) {
-                  final sc = _shortcuts[i];
-                  final text = sc.label.isNotEmpty
-                      ? sc.label
-                      : (sc.key.isNotEmpty ? sc.key : '—');
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 0),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 12),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        backgroundColor: MyTheme.accent80,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5.0),
-                        ),
-                      ),
-                      onPressed: () => widget.onSend(sc),
-                      onLongPress: () => _edit(i),
-                      child: Text(text,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12)),
-                    ),
-                  );
-                }),
-              ),
+          // Close button (top-right).
+          SizedBox(
+            height: 26,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  color: Colors.white,
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 26),
+                  icon: const Icon(Icons.close),
+                  tooltip: translate('Close'),
+                  onPressed: widget.onClose,
+                ),
+              ],
             ),
           ),
+          // Fixed grid: `rows` rows x `cols` columns, no horizontal scrolling.
+          for (var r = 0; r < rows; r++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  for (var c = 0; c < cols; c++)
+                    Expanded(child: _buildKeyButton(r * cols + c)),
+                ],
+              ),
+            ),
         ],
       ),
     );
