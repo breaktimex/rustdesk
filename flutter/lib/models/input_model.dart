@@ -935,7 +935,63 @@ class InputModel {
         lockModes: lockModes,
         downOrUp: down);
   }
+  //update 7/7
+  
+  // Reverse of `physicalKeyMap` (consts.dart): maps a VK name (e.g. 'VK_A') to
+  // its USB HID usage (e.g. 0x00070004). Keep the first occurrence so ambiguous
+  // names resolve to the main key (e.g. 'VK_ENTER' -> main Enter, not numpad).
+  static final Map<String, int> _nameToUsbHid = () {
+    final m = <String, int>{};
+    for (final e in physicalKeyMap.entries) {
+      m.putIfAbsent(e.value, () => e.key);
+    }
+    return m;
+  }();
 
+  int? usbHidFromKeyName(String name) => _nameToUsbHid[name];
+
+  // Send a physical key by USB HID usage (map mode), optionally with modifiers.
+  // Uses scancode-based injection so games (DirectInput / Raw Input) receive it,
+  // unlike legacy char input which many games ignore.
+  //
+  // The `character` passed to `newKeyboardMode` MUST NOT be `kKeyFlutterKey`
+  // ("flutter_key"), otherwise the peer routes it to the volume/power-only
+  // simulation handler and drops the key. Empty string routes it to the normal
+  // map-mode path (usb_hid -> physical key), mirroring the physical keyboard.
+  void sendHidKey(int usbHid,
+      {bool ctrl = false,
+      bool alt = false,
+      bool shift = false,
+      bool command = false}) {
+    final mods = <int>[];
+    if (ctrl) mods.add(0x000700e0); // Left Control
+    if (shift) mods.add(0x000700e1); // Left Shift
+    if (alt) mods.add(0x000700e2); // Left Alt
+    if (command) mods.add(0x000700e3); // Left Meta/Win
+    for (final m in mods) {
+      newKeyboardMode('', m & 0xFFFF, true, false);
+    }
+    newKeyboardMode('', usbHid & 0xFFFF, true, false);
+    newKeyboardMode('', usbHid & 0xFFFF, false, false);
+    for (final m in mods.reversed) {
+      newKeyboardMode('', m & 0xFFFF, false, false);
+    }
+  }
+
+  // Send a key by its VK name (e.g. 'VK_A', 'VK_SPACE') using map mode when the
+  // key has a known physical HID usage. Returns false if the name is unknown,
+  // so the caller can fall back to legacy input.
+  bool sendKeyNameMapMode(String name,
+      {bool ctrl = false,
+      bool alt = false,
+      bool shift = false,
+      bool command = false}) {
+    final hid = usbHidFromKeyName(name);
+    if (hid == null) return false;
+    sendHidKey(hid, ctrl: ctrl, alt: alt, shift: shift, command: command);
+    return true;
+  }
+  //update 7/7
   void mapKeyboardModeRaw(RawKeyEvent e, bool iosCapsLock) {
     int positionCode = -1;
     int platformCode = -1;
