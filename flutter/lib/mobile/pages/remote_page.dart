@@ -1230,11 +1230,14 @@ List<CustomShortcut> _defaultCustomShortcuts() {
     CustomShortcut(label: 'D', key: 'VK_D'),
     CustomShortcut(label: 'W', key: 'VK_W'),
     CustomShortcut(label: 'Space', key: 'VK_SPACE'),
-    CustomShortcut(label: 'F10', key: 'VK_F10'),
+    CustomShortcut(label: 'F12', key: 'VK_F12'),
     CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
     CustomShortcut(label: 'Tab', key: 'VK_TAB'),
     CustomShortcut(label: '1', key: 'VK_1'),
     CustomShortcut(label: '2', key: 'VK_2'),
+    CustomShortcut(label: '3', key: 'VK_3'),
+    CustomShortcut(label: '4', key: 'VK_4'),
+    CustomShortcut(label: '5', key: 'VK_5'),
   ];
   // Pad the rest with empty slots (long-press to customize).
   while (list.length < kCustomShortcutCount) {
