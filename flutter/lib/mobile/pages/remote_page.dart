@@ -670,6 +670,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   }
   void _sendCustomShortcut(CustomShortcut sc) {
     if (sc.key.isEmpty) return;
+    // Prefer map mode (physical USB HID scancode) so games using DirectInput /
+    // Raw Input receive the key. Fall back to legacy char/control-key input if
+    // the key name has no known physical HID usage.
+    final sent = inputModel.sendKeyNameMapMode(sc.key,
+        ctrl: sc.ctrl, alt: sc.alt, shift: sc.shift, command: sc.command);
+    if (sent) return;
+
     final im = inputModel;
     final oldCtrl = im.ctrl;
     final oldAlt = im.alt;
