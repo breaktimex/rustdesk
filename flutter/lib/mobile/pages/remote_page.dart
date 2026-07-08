@@ -65,6 +65,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   bool _showGestureHelp = false;
   bool _showCustomKeys = false; // custom shortcuts panel
   String _value = '';
+  // Key on the bottomNavigationBar Stack so we can measure its total height
+  // (app bar + optional custom-keys panel) and tell the canvas to shrink by
+  // that amount, keeping the remote image fully visible above the bar.
+  final GlobalKey _bottomBarKey = GlobalKey();
   Orientation? _currentOrientation;
   final _uniqueKey = UniqueKey();
   Timer? _iosKeyboardWorkaroundTimer;
@@ -172,6 +176,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
         overlays: SystemUiOverlay.values);
     WakelockManager.disable(_uniqueKey);
+    gFFI.canvasModel.mobileBottomOverlayHeight = 0;
     await keyboardSubscription.cancel();
     removeSharedStates(widget.id);
     // `on_voice_call_closed` should be called when the connection is ended.
@@ -493,7 +498,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       }
                     });
                   }),
-          bottomNavigationBar: Obx(() => Stack(
+          bottomNavigationBar: Obx(() {
+              // After each frame, report the rendered bar height to the canvas
+              // so the remote image is shifted up (not occluded by the bar).
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _reportBottomBarHeight());
+              return Stack(
+                key: _bottomBarKey,
                 alignment: Alignment.bottomCenter,
                 children: [
                   gFFI.ffiModel.pi.isSet.isTrue &&
@@ -508,7 +519,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       ? emptyOverlay(MyTheme.canvasColor)
                       : Offstage(),
                 ],
-              )),
+              );
+            }),
           body: Obx(
             () => getRawPointerAndKeyBody(Overlay(
               initialEntries: [
@@ -668,12 +680,22 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       ),
     );
   }
-  void _sendCustomShortcut(CustomShortcut sc) {
+  void _reportBottomBarHeight() {
+    final ctx = _bottomBarKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      gFFI.canvasModel.mobileBottomOverlayHeight = box.size.height;
+    }
+  }
+
+  void _sendCustomShortcutDown(CustomShortcut sc) {
     if (sc.key.isEmpty) return;
     // Prefer map mode (physical USB HID scancode) so games using DirectInput /
-    // Raw Input receive the key. Fall back to legacy char/control-key input if
-    // the key name has no known physical HID usage.
-    final sent = inputModel.sendKeyNameMapMode(sc.key,
+    // Raw Input receive the key. The key is held down until the user releases
+    // the on-screen button (see _sendCustomShortcutUp). Fall back to a legacy
+    // char/control-key tap if the key name has no known physical HID usage.
+    final sent = inputModel.sendKeyNameMapModeDown(sc.key,
         ctrl: sc.ctrl, alt: sc.alt, shift: sc.shift, command: sc.command);
     if (sent) return;
     final im = inputModel;
@@ -691,7 +713,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     im.shift = oldShift;
     im.command = oldCommand;
   }
-  
+
+  void _sendCustomShortcutUp(CustomShortcut sc) {
+    if (sc.key.isEmpty) return;
+    // Release the held key (map mode). Legacy fallback keys already sent a full
+    // tap on down, so there is nothing to release for them.
+    inputModel.sendKeyNameMapModeUp(sc.key,
+        ctrl: sc.ctrl, alt: sc.alt, shift: sc.shift, command: sc.command);
+  }
   bool get showCursorPaint =>
       !gFFI.ffiModel.isPeerAndroid &&
       !gFFI.canvasModel.cursorEmbedded &&
@@ -1243,7 +1272,6 @@ List<CustomShortcut> _defaultCustomShortcuts() {
     CustomShortcut(label: 'Ctrl', key: 'VK_CONTROL'),
     CustomShortcut(label: 'Shift', key: 'VK_SHIFT'),
     CustomShortcut(label: 'Alt', key: 'VK_MENU'),
-    CustomShortcut(label: 'Del', key: 'VK_DELETE'),
   ]);
   // F1-F12 while there is still room
   for (var i = 1; i <= 12 && list.length < kCustomShortcutCount; i++) {
@@ -1261,9 +1289,16 @@ List<CustomShortcut> _defaultCustomShortcuts() {
 }
 
 class CustomShortcutsBar extends StatefulWidget {
-  final void Function(CustomShortcut) onSend;
+  // Called on pointer-down / pointer-up of a key button so the peer holds the
+  // key exactly as long as the user presses it (press-and-hold).
+  final void Function(CustomShortcut) onKeyDown;
+  final void Function(CustomShortcut) onKeyUp;
   final VoidCallback? onClose;
-  const CustomShortcutsBar({Key? key, required this.onSend, this.onClose})
+  const CustomShortcutsBar(
+      {Key? key,
+      required this.onKeyDown,
+      required this.onKeyUp,
+      this.onClose})
       : super(key: key);
 
   @override
@@ -1272,6 +1307,9 @@ class CustomShortcutsBar extends StatefulWidget {
 
 class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
   List<CustomShortcut> _shortcuts = [];
+  // When true, tapping a key opens its editor instead of sending the key.
+  // This keeps press-and-hold (for games) free of an edit gesture conflict.
+  bool _editMode = false;
 
   @override
   void initState() {
@@ -1386,28 +1424,47 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
     final text = sc.label.isNotEmpty
         ? sc.label
         : (sc.key.isNotEmpty ? sc.key : '—');
+    final visual = Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+      decoration: BoxDecoration(
+        color: _editMode ? Colors.orange.shade700 : MyTheme.accent80,
+        borderRadius: BorderRadius.circular(5.0),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: TextButton(
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 0),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          backgroundColor: MyTheme.accent80,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(5.0),
-          ),
-        ),
-        onPressed: () => widget.onSend(sc),
-        onLongPress: () => _edit(i),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-      ),
+      child: _editMode
+          // Edit mode: tap to edit the key.
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _edit(i),
+              child: visual,
+            )
+          // Normal mode: press-and-hold. Send key-down on touch, key-up on
+          // release/cancel, so the peer holds the key as long as the finger is
+          // down. Listener (raw pointer events) supports simultaneous holds
+          // across multiple buttons (e.g. WASD) unlike tap gestures.
+          : Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (_) {
+                if (sc.key.isNotEmpty) widget.onKeyDown(sc);
+              },
+              onPointerUp: (_) {
+                if (sc.key.isNotEmpty) widget.onKeyUp(sc);
+              },
+              onPointerCancel: (_) {
+                if (sc.key.isNotEmpty) widget.onKeyUp(sc);
+              },
+              child: visual,
+            ),
     );
   }
 
@@ -1428,6 +1485,16 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                IconButton(
+                  color: _editMode ? Colors.orange : Colors.white,
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 26),
+                  icon: Icon(_editMode ? Icons.edit : Icons.edit_outlined),
+                  tooltip: translate('Edit'),
+                  onPressed: () => setState(() => _editMode = !_editMode),
+                ),
                 IconButton(
                   color: Colors.white,
                   iconSize: 18,
