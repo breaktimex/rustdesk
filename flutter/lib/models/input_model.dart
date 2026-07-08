@@ -950,45 +950,66 @@ class InputModel {
 
   int? usbHidFromKeyName(String name) => _nameToUsbHid[name];
 
-  // Send a physical key by USB HID usage (map mode), optionally with modifiers.
+  // Press a physical key by USB HID usage (map mode), optionally with modifiers.
   // Uses scancode-based injection so games (DirectInput / Raw Input) receive it,
-  // unlike legacy char input which many games ignore.
+  // unlike legacy char input which many games ignore. The key stays down until
+  // `sendHidKeyUp` is called, so the peer holds it exactly as long as the user
+  // holds the on-screen button (no artificial delay).
   //
   // The `character` passed to `newKeyboardMode` MUST NOT be `kKeyFlutterKey`
   // ("flutter_key"), otherwise the peer routes it to the volume/power-only
   // simulation handler and drops the key. Empty string routes it to the normal
   // map-mode path (usb_hid -> physical key), mirroring the physical keyboard.
-  void sendHidKey(int usbHid,
+  void sendHidKeyDown(int usbHid,
       {bool ctrl = false,
       bool alt = false,
       bool shift = false,
       bool command = false}) {
-    final mods = <int>[];
-    if (ctrl) mods.add(0x000700e0); // Left Control
-    if (shift) mods.add(0x000700e1); // Left Shift
-    if (alt) mods.add(0x000700e2); // Left Alt
-    if (command) mods.add(0x000700e3); // Left Meta/Win
-    for (final m in mods) {
-      newKeyboardMode('', m & 0xFFFF, true, false);
-    }
+    if (ctrl) newKeyboardMode('', 0x000700e0 & 0xFFFF, true, false); // L Ctrl
+    if (shift) newKeyboardMode('', 0x000700e1 & 0xFFFF, true, false); // L Shift
+    if (alt) newKeyboardMode('', 0x000700e2 & 0xFFFF, true, false); // L Alt
+    if (command) newKeyboardMode('', 0x000700e3 & 0xFFFF, true, false); // L Meta
     newKeyboardMode('', usbHid & 0xFFFF, true, false);
-    newKeyboardMode('', usbHid & 0xFFFF, false, false);
-    for (final m in mods.reversed) {
-      newKeyboardMode('', m & 0xFFFF, false, false);
-    }
   }
 
-  // Send a key by its VK name (e.g. 'VK_A', 'VK_SPACE') using map mode when the
+  // Release a physical key by USB HID usage (map mode). The key is released
+  // first, then any modifiers in reverse order.
+  void sendHidKeyUp(int usbHid,
+      {bool ctrl = false,
+      bool alt = false,
+      bool shift = false,
+      bool command = false}) {
+    newKeyboardMode('', usbHid & 0xFFFF, false, false);
+    if (command) newKeyboardMode('', 0x000700e3 & 0xFFFF, false, false);
+    if (alt) newKeyboardMode('', 0x000700e2 & 0xFFFF, false, false);
+    if (shift) newKeyboardMode('', 0x000700e1 & 0xFFFF, false, false);
+    if (ctrl) newKeyboardMode('', 0x000700e0 & 0xFFFF, false, false);
+  }
+
+  // Press a key by its VK name (e.g. 'VK_A', 'VK_SPACE') using map mode when the
   // key has a known physical HID usage. Returns false if the name is unknown,
   // so the caller can fall back to legacy input.
-  bool sendKeyNameMapMode(String name,
+  bool sendKeyNameMapModeDown(String name,
       {bool ctrl = false,
       bool alt = false,
       bool shift = false,
       bool command = false}) {
     final hid = usbHidFromKeyName(name);
     if (hid == null) return false;
-    sendHidKey(hid, ctrl: ctrl, alt: alt, shift: shift, command: command);
+    sendHidKeyDown(hid, ctrl: ctrl, alt: alt, shift: shift, command: command);
+    return true;
+  }
+
+  // Release a key by its VK name (map mode). Returns false if the name is
+  // unknown, so the caller can fall back to legacy input.
+  bool sendKeyNameMapModeUp(String name,
+      {bool ctrl = false,
+      bool alt = false,
+      bool shift = false,
+      bool command = false}) {
+    final hid = usbHidFromKeyName(name);
+    if (hid == null) return false;
+    sendHidKeyUp(hid, ctrl: ctrl, alt: alt, shift: shift, command: command);
     return true;
   }
   //update 7/7
