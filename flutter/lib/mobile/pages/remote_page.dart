@@ -1255,14 +1255,19 @@ class CustomShortcut {
 
 List<CustomShortcut> _defaultCustomShortcuts() {
   final list = <CustomShortcut>[];
+  
+   // 10 digits 0-9
+  for (var d = 0; d <= 9; d++) {
+    list.add(CustomShortcut(label: '$d', key: 'VK_$d'));
+  }
   // 26 letters A-Z
   for (var c = 'A'.codeUnitAt(0); c <= 'Z'.codeUnitAt(0); c++) {
     final ch = String.fromCharCode(c);
     list.add(CustomShortcut(label: ch, key: 'VK_$ch'));
   }
-  // 10 digits 0-9
-  for (var d = 0; d <= 9; d++) {
-    list.add(CustomShortcut(label: '$d', key: 'VK_$d'));
+  // F1-F12 while there is still room
+  for (var i = 1; i <= 12 && list.length < kCustomShortcutCount; i++) {
+    list.add(CustomShortcut(label: 'F$i', key: 'VK_F$i'));
   }
   // special keys
   list.addAll(<CustomShortcut>[
@@ -1273,11 +1278,9 @@ List<CustomShortcut> _defaultCustomShortcuts() {
     CustomShortcut(label: 'Ctrl', key: 'VK_CONTROL'),
     CustomShortcut(label: 'Shift', key: 'VK_SHIFT'),
     CustomShortcut(label: 'Alt', key: 'VK_MENU'),
+    CustomShortcut(label: 'Back', key: 'VK_BACK'),
   ]);
-  // F1-F12 while there is still room
-  for (var i = 1; i <= 12 && list.length < kCustomShortcutCount; i++) {
-    list.add(CustomShortcut(label: 'F$i', key: 'VK_F$i'));
-  }
+  
   // Pad the rest with empty slots (long-press to customize).
   while (list.length < kCustomShortcutCount) {
     list.add(CustomShortcut());
