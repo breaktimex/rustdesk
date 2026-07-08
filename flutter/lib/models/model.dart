@@ -2203,6 +2203,20 @@ class CanvasModel with ChangeNotifier {
   // after showing the soft keyboard.
   bool isMobileCanvasChanged = false;
 
+  // Height (logical px) of an on-screen bottom overlay (e.g. the custom keys
+  // panel) that sits below the remote image on mobile. The canvas is shrunk by
+  // this amount so the image moves up and is not occluded by the overlay.
+  double _mobileBottomOverlayHeight = 0;
+  double get mobileBottomOverlayHeight => _mobileBottomOverlayHeight;
+  set mobileBottomOverlayHeight(double v) {
+    if (!isMobile) return;
+    if ((_mobileBottomOverlayHeight - v).abs() < 0.5) return;
+    _mobileBottomOverlayHeight = v;
+    updateSize();
+    _resetCanvasOffset(getDisplayWidth(), getDisplayHeight());
+    notifyListeners();
+  }
+    
   final ScrollController _horizontal = ScrollController();
   final ScrollController _vertical = ScrollController();
 
@@ -2264,9 +2278,11 @@ class CanvasModel with ChangeNotifier {
       // Account for horizontal safe area insets on both orientations.
       w = w - mediaData.padding.left - mediaData.padding.right;
       // Vertically, subtract the bottom keyboard inset (viewInsets.bottom) and any
-      // bottom overlay (e.g. key-help tools) so the canvas is not covered.
+      // bottom overlay (e.g. key-help tools / custom keys panel) so the canvas is
+      // not covered.
       h = h -
           mediaData.viewInsets.bottom -
+          _mobileBottomOverlayHeight -
           (parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ??
               0);
       // Orientation-specific handling:
@@ -2688,6 +2704,7 @@ class CanvasModel with ChangeNotifier {
     _timerMobileRestoreCanvasOffset?.cancel();
     _offsetBeforeMobileSoftKeyboard = null;
     _scaleBeforeMobileSoftKeyboard = null;
+     _mobileBottomOverlayHeight = 0;
   }
 
   updateScrollPercent() {
