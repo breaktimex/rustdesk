@@ -1253,43 +1253,82 @@ class CustomShortcut {
       );
 }
 
+
 List<CustomShortcut> _defaultCustomShortcuts() {
-  final list = <CustomShortcut>[];
-  
-   // 10 digits 0-9
-  for (var d = 0; d <= 9; d++) {
-    list.add(CustomShortcut(label: '$d', key: 'VK_$d'));
-  }
-  // 26 letters A-Z
-  for (var c = 'A'.codeUnitAt(0); c <= 'Z'.codeUnitAt(0); c++) {
-    final ch = String.fromCharCode(c);
-    list.add(CustomShortcut(label: ch, key: 'VK_$ch'));
-  }
-  // F1-F12 while there is still room
-  for (var i = 1; i <= 12 && list.length < kCustomShortcutCount; i++) {
-    list.add(CustomShortcut(label: 'F$i', key: 'VK_F$i'));
-  }
-  // special keys
-  list.addAll(<CustomShortcut>[
-    CustomShortcut(label: 'Esc', key: 'VK_ESCAPE'),
-    CustomShortcut(label: 'Tab', key: 'VK_TAB'),
+  // Keyboard-like layout: 8 columns × 7 rows = 56 slots.
+  //
+  // Row 0: Esc   1    2    3    4    5    6    7
+  // Row 1: 8     9    0    F1   F2   F3   F4   F5
+  // Row 2: F6    F7   F8   F9   F10  F11  F12  Tab
+  // Row 3: Q     W    E    R    T    Y    U    I
+  // Row 4: O     P    A    S    D    F    G    H
+  // Row 5: J     K    L    Z    X    C    V    B
+  // Row 6: N     M    Ctrl Shift Alt  Space Enter  —
+  return [
+    // Row 0
+    CustomShortcut(label: 'Esc',   key: 'VK_ESCAPE'),
+    CustomShortcut(label: '1',     key: 'VK_1'),
+    CustomShortcut(label: '2',     key: 'VK_2'),
+    CustomShortcut(label: '3',     key: 'VK_3'),
+    CustomShortcut(label: '4',     key: 'VK_4'),
+    CustomShortcut(label: '5',     key: 'VK_5'),
+    CustomShortcut(label: '6',     key: 'VK_6'),
+    CustomShortcut(label: '7',     key: 'VK_7'),
+    // Row 1
+    CustomShortcut(label: '8',     key: 'VK_8'),
+    CustomShortcut(label: '9',     key: 'VK_9'),
+    CustomShortcut(label: '0',     key: 'VK_0'),
+    CustomShortcut(label: 'F1',    key: 'VK_F1'),
+    CustomShortcut(label: 'F2',    key: 'VK_F2'),
+    CustomShortcut(label: 'F3',    key: 'VK_F3'),
+    CustomShortcut(label: 'F4',    key: 'VK_F4'),
+    CustomShortcut(label: 'F5',    key: 'VK_F5'),
+    // Row 2
+    CustomShortcut(label: 'F6',    key: 'VK_F6'),
+    CustomShortcut(label: 'F7',    key: 'VK_F7'),
+    CustomShortcut(label: 'F8',    key: 'VK_F8'),
+    CustomShortcut(label: 'F9',    key: 'VK_F9'),
+    CustomShortcut(label: 'F10',   key: 'VK_F10'),
+    CustomShortcut(label: 'F11',   key: 'VK_F11'),
+    CustomShortcut(label: 'F12',   key: 'VK_F12'),
+    CustomShortcut(label: 'Tab',   key: 'VK_TAB'),
+    // Row 3  Q W E R T Y U I
+    CustomShortcut(label: 'Q',     key: 'VK_Q'),
+    CustomShortcut(label: 'R',     key: 'VK_R'),
+    CustomShortcut(label: 'E',     key: 'VK_E'),
+    CustomShortcut(label: 'W',     key: 'VK_W'),
+    CustomShortcut(label: 'T',     key: 'VK_T'),
+    CustomShortcut(label: 'Y',     key: 'VK_Y'),
+    CustomShortcut(label: 'U',     key: 'VK_U'),
+    CustomShortcut(label: 'I',     key: 'VK_I'),
+    // Row 4  O P A S D F G H
+    CustomShortcut(label: 'O',     key: 'VK_O'),
+    CustomShortcut(label: 'P',     key: 'VK_P'),
+    CustomShortcut(label: 'A',     key: 'VK_A'),
+    CustomShortcut(label: 'S',     key: 'VK_S'),
+    CustomShortcut(label: 'D',     key: 'VK_D'),
+    CustomShortcut(label: 'F',     key: 'VK_F'),
+    CustomShortcut(label: 'G',     key: 'VK_G'),
+    CustomShortcut(label: 'H',     key: 'VK_H'),
+    // Row 5  J K L Z X C V B
+    CustomShortcut(label: 'J',     key: 'VK_J'),
+    CustomShortcut(label: 'K',     key: 'VK_K'),
+    CustomShortcut(label: 'L',     key: 'VK_L'),
+    CustomShortcut(label: 'Z',     key: 'VK_Z'),
+    CustomShortcut(label: 'X',     key: 'VK_X'),
+    CustomShortcut(label: 'C',     key: 'VK_C'),
+    CustomShortcut(label: 'V',     key: 'VK_V'),
+    CustomShortcut(label: 'B',     key: 'VK_B'),
+    // Row 6  N M Ctrl Shift Alt Space Enter —
+    CustomShortcut(label: 'N',     key: 'VK_N'),
+    CustomShortcut(label: 'M',     key: 'VK_M'),
+    CustomShortcut(label: 'Ctrl',  key: 'VK_CONTROL'),
+    CustomShortcut(label: 'Shift', key: 'VK_SHIFT'),
+    CustomShortcut(label: 'Alt',   key: 'VK_MENU'),
     CustomShortcut(label: 'Space', key: 'VK_SPACE'),
     CustomShortcut(label: 'Enter', key: 'VK_ENTER'),
-    CustomShortcut(label: 'Ctrl', key: 'VK_CONTROL'),
-    CustomShortcut(label: 'Shift', key: 'VK_SHIFT'),
-    CustomShortcut(label: 'Alt', key: 'VK_MENU'),
     CustomShortcut(label: 'Back', key: 'VK_BACK'),
-  ]);
-  
-  // Pad the rest with empty slots (long-press to customize).
-  while (list.length < kCustomShortcutCount) {
-    list.add(CustomShortcut());
-  }
-  // Safety: never exceed the grid capacity.
-  if (list.length > kCustomShortcutCount) {
-    return list.sublist(0, kCustomShortcutCount);
-  }
-  return list;
+  ];
 }
 
 class CustomShortcutsBar extends StatefulWidget {
