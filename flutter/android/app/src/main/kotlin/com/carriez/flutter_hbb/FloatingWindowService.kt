@@ -1,7 +1,6 @@
 package com.carriez.flutter_hbb
 
 import android.annotation.SuppressLint
-import com.rmd.remotegame.R
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
