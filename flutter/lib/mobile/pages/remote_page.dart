@@ -446,7 +446,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     final children = <Widget>[];
     if (_showCustomKeys && displaysReady) {
       children.add(CustomShortcutsBar(
-        onSend: _sendCustomShortcut,
+        onKeyDown: _sendCustomShortcutDown,
+        onKeyUp: _sendCustomShortcutUp,
         onClose: () => setState(() => _showCustomKeys = false),
       ));
     }
