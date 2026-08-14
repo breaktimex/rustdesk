@@ -1522,12 +1522,25 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Close button (top-right).
+          // Toolbar: set-toggle | edit | close
           SizedBox(
             height: 26,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                IconButton(
+                  color: _useSecondarySet ? Colors.lightBlueAccent : Colors.white,
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 26),
+                  icon: Icon(
+                    _useSecondarySet ? Icons.filter_2 : Icons.filter_1,
+                  ),
+                  tooltip: translate('Switch key set'),
+                  onPressed: () =>
+                      setState(() => _useSecondarySet = !_useSecondarySet),
+                ),
                 IconButton(
                   color: _editMode ? Colors.orange : Colors.white,
                   iconSize: 18,
