@@ -1213,6 +1213,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
 // ===== Custom shortcuts panel =====
 
 const String kOptionCustomShortcuts = 'customShortcuts';
+const String kOptionCustomShortcuts2 = 'customShortcuts2';
 const int kCustomShortcutCols = 8; // max keys per row
 const int kCustomShortcutRows = 7; // number of rows
 const int kCustomShortcutCount = kCustomShortcutCols * kCustomShortcutRows;
@@ -1331,6 +1332,74 @@ List<CustomShortcut> _defaultCustomShortcuts() {
   ];
 }
 
+// Second key set: navigation, symbols, numpad — keys absent from the first set.
+List<CustomShortcut> _defaultCustomShortcuts2() {
+  return [
+    // Row 0: Arrow keys + navigation
+    CustomShortcut(label: '←',     key: 'VK_LEFT'),
+    CustomShortcut(label: '→',     key: 'VK_RIGHT'),
+    CustomShortcut(label: '↑',     key: 'VK_UP'),
+    CustomShortcut(label: '↓',     key: 'VK_DOWN'),
+    CustomShortcut(label: 'Home',  key: 'VK_HOME'),
+    CustomShortcut(label: 'End',   key: 'VK_END'),
+    CustomShortcut(label: 'PgUp',  key: 'VK_PRIOR'),
+    CustomShortcut(label: 'PgDn',  key: 'VK_NEXT'),
+    // Row 1: Insert / Delete / symbol keys
+    CustomShortcut(label: 'Ins',   key: 'VK_INSERT'),
+    CustomShortcut(label: 'Del',   key: 'VK_DELETE'),
+    CustomShortcut(label: '-',     key: 'VK_OEM_MINUS'),
+    CustomShortcut(label: '=',     key: 'VK_OEM_PLUS'),
+    CustomShortcut(label: '[',     key: 'VK_OEM_4'),
+    CustomShortcut(label: ']',     key: 'VK_OEM_6'),
+    CustomShortcut(label: '\\',   key: 'VK_OEM_5'),
+    CustomShortcut(label: ';',     key: 'VK_OEM_1'),
+    // Row 2: More symbols + lock keys
+    CustomShortcut(label: '\'',   key: 'VK_OEM_7'),
+    CustomShortcut(label: '`',     key: 'VK_OEM_3'),
+    CustomShortcut(label: ',',     key: 'VK_OEM_COMMA'),
+    CustomShortcut(label: '.',     key: 'VK_OEM_PERIOD'),
+    CustomShortcut(label: '/',     key: 'VK_OEM_2'),
+    CustomShortcut(label: 'Caps',  key: 'VK_CAPITAL'),
+    CustomShortcut(label: 'NumLk', key: 'VK_NUMLOCK'),
+    CustomShortcut(label: 'PrtSc', key: 'VK_SNAPSHOT'),
+    // Row 3: Numpad 0-7
+    CustomShortcut(label: 'NP0',   key: 'VK_NUMPAD0'),
+    CustomShortcut(label: 'NP1',   key: 'VK_NUMPAD1'),
+    CustomShortcut(label: 'NP2',   key: 'VK_NUMPAD2'),
+    CustomShortcut(label: 'NP3',   key: 'VK_NUMPAD3'),
+    CustomShortcut(label: 'NP4',   key: 'VK_NUMPAD4'),
+    CustomShortcut(label: 'NP5',   key: 'VK_NUMPAD5'),
+    CustomShortcut(label: 'NP6',   key: 'VK_NUMPAD6'),
+    CustomShortcut(label: 'NP7',   key: 'VK_NUMPAD7'),
+    // Row 4: Numpad 8-9 + operators
+    CustomShortcut(label: 'NP8',   key: 'VK_NUMPAD8'),
+    CustomShortcut(label: 'NP9',   key: 'VK_NUMPAD9'),
+    CustomShortcut(label: 'NP*',   key: 'VK_MULTIPLY'),
+    CustomShortcut(label: 'NP+',   key: 'VK_ADD'),
+    CustomShortcut(label: 'NP-',   key: 'VK_SUBTRACT'),
+    CustomShortcut(label: 'NP/',   key: 'VK_DIVIDE'),
+    CustomShortcut(label: 'NP.',   key: 'VK_DECIMAL'),
+    CustomShortcut(label: 'NPEn',  key: 'VK_RETURN'),
+    // Row 5: Misc keys
+    CustomShortcut(label: 'Pause', key: 'VK_PAUSE'),
+    CustomShortcut(label: 'ScrLk', key: 'VK_SCROLL'),
+    CustomShortcut(label: 'Apps',  key: 'VK_APPS'),
+    CustomShortcut(label: 'Win',   key: 'VK_LWIN'),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    // Row 6: reserved / user-customizable
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+    CustomShortcut(label: '',      key: ''),
+  ];
+}
 class CustomShortcutsBar extends StatefulWidget {
   // Called on pointer-down / pointer-up of a key button so the peer holds the
   // key exactly as long as the user presses it (press-and-hold).
@@ -1350,9 +1419,14 @@ class CustomShortcutsBar extends StatefulWidget {
 
 class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
   List<CustomShortcut> _shortcuts = [];
+  List<CustomShortcut> _shortcuts2 = [];
   // When true, tapping a key opens its editor instead of sending the key.
   // This keeps press-and-hold (for games) free of an edit gesture conflict.
   bool _editMode = false;
+  bool _useSecondarySet = false;
+
+  List<CustomShortcut> get _currentShortcuts =>
+      _useSecondarySet ? _shortcuts2 : _shortcuts;
 
   @override
   void initState() {
@@ -1362,6 +1436,7 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
 
   void _load() {
     _shortcuts = _defaultCustomShortcuts();
+    _shortcuts2 = _defaultCustomShortcuts2();
     try {
       final s = bind.getLocalFlutterOption(k: kOptionCustomShortcuts);
       if (s.isNotEmpty) {
@@ -1378,15 +1453,32 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
     } catch (e) {
       debugPrint('Failed to load custom shortcuts: $e');
     }
+    try {
+      final s = bind.getLocalFlutterOption(k: kOptionCustomShortcuts2);
+      if (s.isNotEmpty) {
+        final list = jsonDecode(s) as List;
+        final loaded = list
+            .map((e) => CustomShortcut.fromJson(e as Map<String, dynamic>))
+            .toList();
+        for (var i = 0; i < kCustomShortcutCount; ++i) {
+          if (i < loaded.length) {
+            _shortcuts2[i] = loaded[i];
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load custom shortcuts2: $e');
+    }
   }
 
   void _save() {
-    final s = jsonEncode(_shortcuts.map((e) => e.toJson()).toList());
-    bind.setLocalFlutterOption(k: kOptionCustomShortcuts, v: s);
+    final key = _useSecondarySet ? kOptionCustomShortcuts2 : kOptionCustomShortcuts;
+    final s = jsonEncode(_currentShortcuts.map((e) => e.toJson()).toList());
+    bind.setLocalFlutterOption(k: key, v: s);
   }
 
   Future<void> _edit(int index) async {
-    final sc = _shortcuts[index];
+    final sc = _currentShortcuts[index];
     final labelCtrl = TextEditingController(text: sc.label);
     final keyCtrl = TextEditingController(text: sc.key);
     var ctrl = sc.ctrl;
@@ -1440,7 +1532,7 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
                   onPressed: () => Navigator.pop(ctx), isOutline: true),
               dialogButton(translate('OK'), onPressed: () {
                 setState(() {
-                  _shortcuts[index] = CustomShortcut(
+                  _currentShortcuts[index] = CustomShortcut(
                     label: labelCtrl.text.trim(),
                     ctrl: ctrl,
                     alt: alt,
@@ -1460,10 +1552,10 @@ class _CustomShortcutsBarState extends State<CustomShortcutsBar> {
   }
 
   Widget _buildKeyButton(int i) {
-    if (i >= _shortcuts.length) {
+    if (i >= _currentShortcuts.length) {
       return const SizedBox.shrink();
     }
-    final sc = _shortcuts[i];
+    final sc = _currentShortcuts[i];
     final text = sc.label.isNotEmpty
         ? sc.label
         : (sc.key.isNotEmpty ? sc.key : '—');
